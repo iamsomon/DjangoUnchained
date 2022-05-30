@@ -1,0 +1,202 @@
+{% extends "network/layout.html" %}
+
+{% block script%}
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const elem = document.querySelector('#click');
+            let count = 0;
+            let deg = 0;
+            elem.addEventListener('click', () => {
+                if (count % 2 === 0) {
+                    deg = 0;
+                    document.querySelector('#arrow').style.transform = 'rotate('+(deg+180)+'deg)';
+                    count++
+                } else {
+                    deg = 180;
+                    document.querySelector('#arrow').style.transform = 'rotate('+(deg+180)+'deg)';
+                    count++
+                }
+                
+            });
+        });
+    </script>
+    <style>
+        #arrow{
+            transition: transform 0.5s;
+        }
+    </style>
+{% endblock %}
+
+{% block body %}
+    {% if user.is_authenticated %}
+        <div class = "shadow add post card rounded text-white bg-dark mb-3 m-5" >
+                <div id = "click" class="card-header">
+                    <a  data-toggle="collapse" href="#collapseExample" role="button" aria-expanded="false" aria-controls="collapseExample">
+                        <h3>Новый пост <div style = "width: min-content" id = "arrow"></i></div></h3>
+                      </a>
+                </div>
+                <div class="collapse" id="collapseExample">
+                    <div class="input-group input-group-lg card-body" style = "min-width: 100%">
+                        <p class="card-text">Пост:</p>
+                        <div class="input-group-prepend" style = "min-width: 100%">
+                            <form action = "{% url 'add_post' %}" method = "post" style = "min-width: 100%">
+                                <span style = "border-radius: 0" class="input-group-text rounded-top bg-light" id="inputGroup-sizing-sm">
+                                    <i class="ri-edit-line"></i>
+                                </span>
+                                <textarea placeholder = "New Post" class = "rounded-bottom" name = "content" id = "post" style = "min-width: 100%" rows = "1"></textarea>
+                                    {% csrf_token %}
+                        </div>
+                            <input class = "btn btn-light mt-3" type = "submit" value = "Пост">
+                        </form>
+                    </div>  
+                </div>
+        </div>
+
+        {% endif %}
+        {% for post, likes in posts %}
+            <div class = "shadow post card text-center m-5 text-white bg-dark">
+                <div class="card-body" id = "postbody{{forloop.counter}}">
+                    <h4 class="card-title">Автор: <strong><a class = "text-capitalize" href="{% url 'user_profile' post.owner.username %}">{{ post.owner.username }}</a></strong></h4>
+                    <hr>
+                    {% comment %} <h4 class="card-title text-capitalize"><a href="{% url 'user_profile' post.owner.username %}">{{ post.owner.username }}</a></h4> {% endcomment %}
+                    <p id = "oldcontent{{forloop.counter}}" class="card-text"><strong><i class="ri-user-4-fill"></i> </strong> {{ post.content }}</p>
+                    {% if user.is_authenticated %}
+                        <form id = 'likeform{{forloop.counter}}' action = "{% url 'like_post' %}" method = "post" style = "min-width: 100%">
+                            <input type = "hidden" name = "post_id" value = "{{ post.id }}">
+                            {% if user in post.liked_by.all %}
+                            <button type="submit" id="like{{forloop.counter}}" name="dislike" value="{{ post.id }}" class="btn btn-light mt-3">Не нравится</button>
+                            {% else %}
+                            <button type="submit" id="like{{forloop.counter}}" name="like" value="{{ post.id }}" class="btn btn-light mt-3">Нравится</button>
+                            {% endif %}
+                            {% csrf_token %}
+                        </form>
+                    {% endif %}
+                    <button id = "likescount{{forloop.counter}}" class="btn btn-warning text-white mt-2"><i class="ri-heart-3-line"></i> {{likes.count}} </button>
+                </div>
+                <div class="card-footer">
+                    <small class="text">Последнее обновление {{ post.updated_at }}</small>
+                    {% if user == post.owner %}
+                        <button id = "edit{{forloop.counter}}" class = "btn btn-light float-right"><i class="ri-edit-box-fill"></i></button>
+                        <script>
+                            document.addEventListener('DOMContentLoaded', () => {
+                                let counter = 0;
+                                const editbtn = document.querySelector('#edit{{forloop.counter}}');
+                                //create a new form to edit the post and hide the old one 
+                                const editform = document.createElement('form');
+                                editform.setAttribute('action', "{% url 'edit_post_async' %}");
+                                editform.setAttribute('method', "post");
+                                editform.setAttribute('style', "min-width: 100%; display:flex; align-items: center; justify-content: center; flex-direction: column;");
+                                editform.setAttribute('id', "newform{{forloop.counter}}");
+                                editform.innerHTML = `
+                                    <input type = "hidden" name = "post_id" value = "{{ post.id }}">
+                                    <textarea id = 'newcontent{{forloop.counter}}' name = "content" value = "{{ post.content }}" placeholder = "{{ post.content }}"></textarea>
+                                    <input type = "hidden" name = "csrfmiddlewaretoken" value = "{{ csrf_token }}">
+                                    <input type = "submit" value = "Изменить" class = "btn btn-light mt-3 mb-2">
+                                `;
+                                const postbody = document.querySelector('#postbody{{forloop.counter}}');
+                                const oldform = document.querySelector('#likeform{{forloop.counter}}');
+                                postbody.insertBefore(editform, oldform);
+                                editformdis = "min-width: 100%; display:flex; align-items: center; justify-content: center; flex-direction: column;";
+                                oldformdis = oldform.style.display;
+                                editform.setAttribute('style', "display:none;");
+                                editbtn.addEventListener('click', () => {
+                                    if (counter % 2 === 0) {
+                                        oldform.style.display = 'none';
+                                        editform.style = editformdis;
+                                        counter++
+                                    } else {
+                                        oldform.style.display = oldformdis;
+                                        editform.style.display = 'none';
+                                        counter++
+                                    }
+                                });
+                                editform.onsubmit = (e) => {
+                                    e.preventDefault();
+                                    fetch(editform.getAttribute('action'), {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'X-CSRFToken': '{{ csrf_token }}'
+                                        },
+                                        body: JSON.stringify({
+                                            'post_id': oldform.post_id.value,
+                                            'content': document.querySelector('#newcontent{{forloop.counter}}').value
+                                        })
+                                    }).then(response => response.json())
+                                    .then(data => {
+                                        document.querySelector('#oldcontent{{forloop.counter}}').innerHTML ='<strong><i class="ri-user-4-fill"></i> </strong> '+ data.content;
+                                        oldform.style.display = oldformdis;
+                                        editform.style.display = 'none';
+                                        counter++
+                                    });
+                                };
+                                });
+                        </script>
+                    {% endif %}
+                    <script>
+                        document.addEventListener('DOMContentLoaded', () => {
+                            const likebtn = document.querySelector('#like{{forloop.counter}}');
+                            const likescount = document.querySelector('#likescount{{forloop.counter}}');
+                            const likeform = document.querySelector('#likeform{{forloop.counter}}');
+                            likeform.onsubmit = (e) => {
+                                e.preventDefault();
+                                fetch('{% url 'like_post' %}', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'X-CSRFToken': '{{ csrf_token }}'
+                                    },
+                                    body: JSON.stringify({
+                                        'post_id': likeform.post_id.value,
+                                    })
+                                })
+                                .then(response => response.json())
+                                .then(data => {
+                                    likescount.innerHTML ='<i class="ri-heart-3-line"></i> '+ data.likes;
+                                    likebtn.innerHTML = data.like;
+                                })
+                                .catch(error => console.error(error));
+                        };});
+                    </script>
+                </div>
+            </div>
+            {% endfor %}
+            <nav aria-label="Page navigation" style = "display:flex; justify-content:center;">
+                <ul class="pagination">
+                    {% if popo.has_previous and not popo.has_next %}
+                        <li class="page-item"><a href="?page=1" style = "border-radius:0" class="btn btn-dark rounded-left" >&laquo;</a></li>
+                        <li class="page-item"><a href="?page={{ popo.previous_page_number }} "class="btn btn-dark rounded-0 border-right border-left" >Назад</a></li>
+                        <li class="page-item disabled">
+                            <a class="btn btn-dark rounded-0 disabled" href="#" tabindex="-1">Дальше</a>
+                        </li>
+                        <li class="page-item disabled">
+                            <a style = "border-radius:0" class="btn btn-dark rounded-right disabled" href="#" tabindex="-1">&raquo;</a>
+                        </li>
+                    {% endif %}
+
+                    {% comment %} <span class="current">
+                        Page {{ popo.number }} of {{ popo.paginator.num_pages }}.
+                    </span> {% endcomment %}
+
+                    {% if popo.has_next and not popo.has_previous %}
+                        <li class="page-item disabled">
+                            <a style = "border-radius:0" class="btn btn-dark rounded-left disabled" href="#" tabindex="-1">&laquo;</a>
+                        </li>
+                        <li class="page-item disabled">
+                            <a class="btn btn-dark rounded-0 disabled" href="#" tabindex="-1">Назад</a>
+                        </li>
+                        <li class="page-item"><a class="btn btn-dark rounded-0 border-right border-left"  href="?page={{ popo.next_page_number }}">Дальше</a></li>
+                        <li class="page-item"><a style = "border-radius:0" class="btn btn-dark rounded-right"  href="?page={{ popo.paginator.num_pages }}">&raquo;</a></li>
+                    {% endif %}
+
+                    {% if popo.has_next and popo.has_previous %}
+                        <li class="page-item"><a style = "border-radius:0" href="?page=1" class="btn btn-dark rounded-left" >&laquo;</a></li>
+                        <li class="page-item"><a href="?page={{ popo.previous_page_number }} "class="btn btn-dark rounded-0 border-left" >Назад</a></li>
+                        <li class="page-item"><a class="btn btn-dark rounded-0 border-right border-left"  href="?page={{ popo.next_page_number }}">Дальше</a></li>
+                        <li class="page-item"><a style = "border-radius:0" class="btn btn-dark rounded-right"  href="?page={{ popo.paginator.num_pages }}">&raquo;</a></li>
+                    {% endif %}
+
+
+                </ul>
+            </nav>
+{% endblock %}

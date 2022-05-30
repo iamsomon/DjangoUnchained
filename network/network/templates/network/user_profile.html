@@ -1,0 +1,143 @@
+{% extends "network/layout.html" %}
+
+    
+    
+    {% block body %}
+    <div class="card m-5">
+        <h5 class="card-header text-capitalize">Профиль: {{ username }}'</h5>
+        <div class="card-body">
+          <h5 class="card-title">Подписчики</h5>
+          <p class="card-text">{{ followers|length }}.</p>
+          <h5 class="card-title">Подписки</h5>
+          <p class="card-text">{{ following|length }}.</p>
+          {% if user.is_authenticated %}
+            {% if user.username != username %}
+                <form action="{% url 'follow' username %}" method="POST">
+                    {% csrf_token %}
+                    {% if user in followers %}
+                        <button type="submit" class="btn btn-primary">Отписаться</button>
+                    {% else %}
+                        <button type="submit" class="btn btn-primary">Подписаться</button>
+                    {% endif %}
+    
+                </form>
+            {% endif %}
+        {% endif %}
+        </div>
+      </div>
+
+
+
+        <h2 class="ml-5">Посты</h2>
+        {% if posts is empty %}
+            <p>Нет постов</p>
+        {% else %}
+            {% for post, likes in posts %}
+                <div class = "shadow post card text-center m-5 text-white bg-dark">
+                    <div id = "postbody{{forloop.counter}}" class="card-body">
+                        <h4 class="card-title">Автор: <strong><a class = "text-capitalize" href="{% url 'user_profile' post.owner.username %}">{{ post.owner.username }}</a></strong></h4>
+                        <hr>
+                        <p id = "oldcontent{{forloop.counter}}" class="card-text"><strong><i class="ri-user-4-fill"></i> </strong> {{ post.content }}</p>
+                        {% if user.is_authenticated %}
+                            <form id = 'likeform{{forloop.counter}}' action = "{% url 'like_post' %}" method = "post" style = "min-width: 100%">
+                                <input type = "hidden" name = "post_id" value = "{{ post.id }}">
+                                {% if user in post.liked_by.all %}
+                                <button type="submit" id="like{{forloop.counter}}" name="dislike" value="{{ post.id }}" class="btn btn-light mt-3">Не нравится</button>
+                                {% else %}
+                                <button type="submit" id="like{{forloop.counter}}" name="like" value="{{ post.id }}" class="btn btn-light mt-3">Нравится</button>
+                                {% endif %}
+                                {% csrf_token %}
+                            </form>
+                        {% endif %} 
+                        <button id = "likescount{{forloop.counter}}" class="btn btn-danger mt-2"><i class="ri-heart-3-line"></i> {{likes.count}} </button>
+                    </div>
+                    <div class="card-footer">
+                        <small class="text">Последнее обновление {{ post.updated_at }}</small>
+                        {% if user == post.owner %}
+                        <button id = "edit{{forloop.counter}}" class = "btn btn-light float-right"><i class="ri-edit-box-fill"></i></button>
+                        <script>
+                            document.addEventListener('DOMContentLoaded', () => {
+                                let counter = 0;
+                                const editbtn = document.querySelector('#edit{{forloop.counter}}');
+                                //create a new form to edit the post and hide the old one 
+                                const editform = document.createElement('form');
+                                editform.setAttribute('action', "{% url 'edit_post_async' %}");
+                                editform.setAttribute('method', "post");
+                                editform.setAttribute('style', "min-width: 100%; display:flex; align-items: center; justify-content: center; flex-direction: column;");
+                                editform.setAttribute('id', "newform{{forloop.counter}}");
+                                editform.innerHTML = `
+                                    <input type = "hidden" name = "post_id" value = "{{ post.id }}">
+                                    <textarea id = 'newcontent{{forloop.counter}}' name = "content" value = "{{ post.content }}" placeholder = "{{ post.content }}"></textarea>
+                                    <input type = "hidden" name = "csrfmiddlewaretoken" value = "{{ csrf_token }}">
+                                    <input type = "submit" value = "Edit" class = "btn btn-light mt-3 mb-2">
+                                `;
+                                const postbody = document.querySelector('#postbody{{forloop.counter}}');
+                                const oldform = document.querySelector('#likeform{{forloop.counter}}');
+                                postbody.insertBefore(editform, oldform);
+                                editformdis = "min-width: 100%; display:flex; align-items: center; justify-content: center; flex-direction: column;";
+                                oldformdis = oldform.style.display;
+                                editform.setAttribute('style', "display:none;");
+                                editbtn.addEventListener('click', () => {
+                                    if (counter % 2 === 0) {
+                                        oldform.style.display = 'none';
+                                        editform.style = editformdis;
+                                        counter++
+                                    } else {
+                                        oldform.style.display = oldformdis;
+                                        editform.style.display = 'none';
+                                        counter++
+                                    }
+                                });
+                                editform.onsubmit = (e) => {
+                                    e.preventDefault();
+                                    fetch(editform.getAttribute('action'), {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'X-CSRFToken': '{{ csrf_token }}'
+                                        },
+                                        body: JSON.stringify({
+                                            'post_id': oldform.post_id.value,
+                                            'content': document.querySelector('#newcontent{{forloop.counter}}').value
+                                        })
+                                    }).then(response => response.json())
+                                    .then(data => {
+                                        document.querySelector('#oldcontent{{forloop.counter}}').innerHTML ='<strong><i class="ri-user-4-fill"></i> </strong> '+ data.content;
+                                        oldform.style.display = oldformdis;
+                                        editform.style.display = 'none';
+                                        counter++
+                                    });
+                                };
+                            });
+
+                            document.addEventListener('DOMContentLoaded', () => {
+                                const likebtn = document.querySelector('#like{{forloop.counter}}');
+                                const likescount = document.querySelector('#likescount{{forloop.counter}}');
+                                const likeform = document.querySelector('#likeform{{forloop.counter}}');
+                                likeform.onsubmit = (e) => {
+                                    e.preventDefault();
+                                    fetch('{% url 'like_post' %}', {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'X-CSRFToken': '{{ csrf_token }}'
+                                        },
+                                        body: JSON.stringify({
+                                            'post_id': likeform.post_id.value,
+                                        })
+                                    })
+                                    .then(response => response.json())
+                                    .then(data => {
+                                        likescount.innerHTML ='<i class="ri-heart-3-line"></i> '+ data.likes;
+                                        likebtn.innerHTML = data.like;
+                                    })
+                                    .catch(error => console.error(error));
+                            };});
+                        </script>
+                    {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+    {% endblock %}
